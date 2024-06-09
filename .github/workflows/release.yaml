@@ -1,0 +1,84 @@
+name: build and release
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    # inputs:
+    #   tag:
+    #     description: 'Release tag'
+    #     required: false
+    #     type: string
+  push:
+    branches: 
+      - main
+    paths:
+      - '**.ts'
+      - '**.vue'
+      - '**.less'
+      - '**.html'
+      - '**.go'
+      - '**.mod'
+      - '**.sum'
+
+jobs:
+
+  build:
+    runs-on: ubuntu-20.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        check-latest: true
+        cache-dependency-path: backend/go.sum
+
+    - name: Set up pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 8
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'pnpm'
+        cache-dependency-path: frontend/pnpm-lock.yaml
+
+
+    - name: Build Frontend
+      run: |
+        cd frontend
+        bash build.sh
+
+    - name: Build Backend
+      run: |
+        cd backend
+        TAG_NAME="${{ inputs.tag }}"
+        NAME="$(date -u +"%Y-%m-%d %H:%M:%S") UTC"
+        if [ -z "$TAG_NAME" ]; then
+          TAG_NAME="bin"
+          export LDFLAGS="-X website-testing/config.Version=$(date -Iseconds -u)"
+        else
+          export LDFLAGS="-X website-testing/config.Version=${TAG_NAME}"
+        fi
+        echo "TAG_NAME=${TAG_NAME}" >> "$GITHUB_ENV"
+        echo "NAME=${NAME}" >> "$GITHUB_ENV"
+        bash build.sh
+        
+
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      with:
+          files: "backend/bin/*"
+          tag_name: ${{ env.TAG_NAME }}
+          prerelease: false
+          name: "${{ env.NAME }}"
+          body: "## ⚠ 此发布仅有程序是最新的。"
