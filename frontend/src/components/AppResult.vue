@@ -81,7 +81,7 @@ const filteredItems = computed(() => {
     items = [...items];
     const kw = keyword.value.trim().toLowerCase();
     if (kw !== "") {
-        items = items.filter((v) => v.name.toLowerCase().indexOf(kw) > -1);
+        items = items.filter((v) => (v.name + v.url).toLowerCase().indexOf(kw) > -1);
     }
     const flag = checked.value.reduce((a, b) => a | b, 0);
     if (flag & CheckOption.RedirectedWebsite) {
