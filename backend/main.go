@@ -48,7 +48,7 @@ func main() {
 	go func() {
 		if immediate {
 			tc.Test(&config.Conf{
-				TimeoutSeconds: 30,
+				TimeoutSeconds: 60,
 				UserAgent:      wt.UAFirefoxWin64,
 			}, services.CallbackOption)
 		}

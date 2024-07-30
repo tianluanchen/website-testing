@@ -9,7 +9,7 @@ const defaultConf = () =>
     ({
         dns_server: "",
         proxy_url: "",
-        timeout_seconds: 30,
+        timeout_seconds: 60,
         user_agent:
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0"
     }) as Conf;
