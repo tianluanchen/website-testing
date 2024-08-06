@@ -47,7 +47,7 @@ fi
 mkdir -p $output_dir
 
 if [ -z "$LDFLAGS" ]; then
-    LDFLAGS="-X website-testing/config.Version=0.0.$(date -u +"%Y%m%d%H%M%S")"
+    LDFLAGS="-X website-testing/config.Version=$(date -Iseconds -u)"
 fi
 targets=("linux/amd64" "linux/arm64" "windows/arm64" "windows/amd64" "darwin/amd64" "darwin/arm64")
 
