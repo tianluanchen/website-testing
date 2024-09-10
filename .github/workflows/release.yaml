@@ -74,7 +74,7 @@ jobs:
         echo "NAME=${NAME}" >> "$GITHUB_ENV"
         # linux/amd64
         curl -L -o awake https://github.com/tianluanchen/awake/releases/download/bin/awake_linux_amd64 && chmod +x awake
-        awake build -o bin --trimpath --ldflags "-s -w ${LDFLAGS}" --target "linux/amd64,linux/arm64,windows/arm64,windows/amd64,darwin/amd64,darwin/arm64"
+        ./awake build -o bin --trimpath --ldflags "-s -w ${LDFLAGS}" --target "linux/amd64,linux/arm64,windows/arm64,windows/amd64,darwin/amd64,darwin/arm64"
         
 
     - name: Release
