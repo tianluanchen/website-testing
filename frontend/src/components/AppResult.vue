@@ -73,45 +73,54 @@ const getItemsByCategory = (category: "animation" | "video") => {
     return result.value?.testingResult?.groups?.find((r) => r.category === category)?.items || [];
 };
 
-const filteredItems = computed(() => {
-    let items = getItemsByCategory(category.value);
-    if (items.length === 0) {
-        return [];
-    }
-    items = [...items];
-    const kw = keyword.value.trim().toLowerCase();
-    if (kw !== "") {
-        items = items.filter((v) => (v.name + v.url).toLowerCase().indexOf(kw) > -1);
-    }
-    const flag = checked.value.reduce((a, b) => a | b, 0);
-    if (flag & CheckOption.RedirectedWebsite) {
-        items = items.filter(
-            (v) => (v.result?.records.length || 0) > 1 || !!v.result?.last_resp_redirect
-        );
-    }
+const filteredGroups = computed(() => {
+    return (
+        result.value?.testingResult?.groups?.map((r) => {
+            let items = [...r.items];
+            const kw = keyword.value.trim().toLowerCase();
+            if (kw !== "") {
+                items = items.filter(
+                    (v) => (v.name + v.url + v.result?.title || "").toLowerCase().indexOf(kw) > -1
+                );
+            }
+            const flag = checked.value.reduce((a, b) => a | b, 0);
+            if (flag & CheckOption.RedirectedWebsite) {
+                items = items.filter(
+                    (v) => (v.result?.records.length || 0) > 1 || !!v.result?.last_resp_redirect
+                );
+            }
 
-    if (flag & CheckOption.AccessibleWebsite) {
-        items = items.filter((v) => !v.err && !v.result?.err);
-    }
-    if (flag & CheckOption.SortByAccessSpeed) {
-        const existErr = (v: TestingResult["groups"][0]["items"][0]) => {
-            return !v.result || !!v.result.err;
-        };
-        items.sort((a, b) => {
-            if (existErr(a) && existErr(b)) {
-                return 0;
+            if (flag & CheckOption.AccessibleWebsite) {
+                items = items.filter((v) => !v.err && !v.result?.err);
             }
-            if (existErr(a) && !existErr(b)) {
-                return 1;
+            if (flag & CheckOption.SortByAccessSpeed) {
+                const existErr = (v: TestingResult["groups"][0]["items"][0]) => {
+                    return !v.result || !!v.result.err;
+                };
+                items.sort((a, b) => {
+                    if (existErr(a) && existErr(b)) {
+                        return 0;
+                    }
+                    if (existErr(a) && !existErr(b)) {
+                        return 1;
+                    }
+                    if (existErr(b) && !existErr(a)) {
+                        return -1;
+                    }
+                    return a.result!.total_duration - b.result!.total_duration;
+                });
             }
-            if (existErr(b) && !existErr(a)) {
-                return -1;
-            }
-            return a.result!.total_duration - b.result!.total_duration;
-        });
-    }
-    return items;
+            return {
+                ...r,
+                items
+            };
+        }) || []
+    );
 });
+
+const getFilteredItemsByCategory = (category: "animation" | "video") => {
+    return filteredGroups.value?.find((r) => r.category === category)?.items || [];
+};
 
 const options = computed(() => {
     const arr = [
@@ -122,11 +131,7 @@ const options = computed(() => {
         { label: "影视网站", value: "video" }
     ];
     for (const v of arr) {
-        if (v.value === category.value) {
-            v.label += `（${filteredItems.value.length}/${getItemsByCategory(v.value).length}）`;
-        } else {
-            v.label += `（${getItemsByCategory(v.value as any).length}）`;
-        }
+        v.label += `（${getFilteredItemsByCategory(v.value as any).length}/${getItemsByCategory(v.value as any).length}）`;
     }
     return arr;
 });
@@ -250,7 +255,7 @@ const options = computed(() => {
                         />
                     </n-space>
                 </n-checkbox-group>
-                <AppTable :category="category" :items="filteredItems" />
+                <AppTable :category="category" :items="getFilteredItemsByCategory(category)" />
             </template>
         </n-space>
         <n-empty description="您还未进行过测试" v-else> </n-empty>
