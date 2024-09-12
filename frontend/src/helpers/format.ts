@@ -36,15 +36,17 @@ export function formatDuration(duration: number, option?: FormatDurationOption) 
             str += Math.floor(seconds) + opt.second;
         } else {
             const fixed = seconds.toFixed(1);
-            str +=
-                (Math.floor(seconds) === seconds
+            const secondsStr =
+                Math.floor(seconds) === seconds
                     ? seconds
                     : fixed.endsWith(".0")
                       ? fixed.slice(0, fixed.length - 2)
-                      : fixed) + opt.second;
+                      : fixed;
+            if (secondsStr !== "0" || str === "") {
+                str += secondsStr + opt.second;
+            }
         }
     }
-
     return str;
 }
 
