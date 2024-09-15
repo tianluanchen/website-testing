@@ -13,24 +13,19 @@ import (
 	"strings"
 	"website-testing/config"
 	"website-testing/internal/server"
-	"website-testing/internal/server/services"
-	"website-testing/internal/tc"
 	"website-testing/pkg"
-	"website-testing/wt"
 )
 
 var logger = pkg.NewLogger()
 
 func main() {
 	var (
-		addr      string
-		open      bool
-		immediate bool
-		v         bool
+		addr string
+		open bool
+		v    bool
 	)
 	flag.StringVar(&addr, "addr", "127.0.0.1:8080", "Listen address")
 	flag.BoolVar(&open, "open", true, "Open browser")
-	flag.BoolVar(&immediate, "immediate", true, "Immediately start testing")
 	flag.BoolVar(&v, "v", false, "Print version information")
 	flag.Parse()
 	if v {
@@ -46,12 +41,6 @@ func main() {
 		logger.Infoln("Ayouth的个人网站：", (*url.URL)(v).String())
 	}
 	go func() {
-		if immediate {
-			tc.Test(&config.Conf{
-				TimeoutSeconds: 60,
-				UserAgent:      wt.UAFirefoxWin64,
-			}, services.CallbackOption)
-		}
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal(err)
 		}
