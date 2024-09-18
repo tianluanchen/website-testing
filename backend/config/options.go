@@ -16,12 +16,16 @@ var DNSServerOptions = []option[string]{
 		Value: "",
 	},
 	{
+		Label: "腾讯云",
+		Value: "119.29.29.29",
+	},
+	{
 		Label: "阿里云",
 		Value: "223.5.5.5",
 	},
 	{
-		Label: "腾讯云",
-		Value: "119.29.29.29",
+		Label: "Cloudflare",
+		Value: "1.1.1.1",
 	},
 }
 
