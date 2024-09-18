@@ -73,17 +73,15 @@ function submit() {
         proxiesStore.add(conf.value.proxy_url);
         submitting.value = true;
         http<{
-            already: boolean;
+            last_test_aborted: boolean;
         }>("/api/start", {
             method: "POST",
             ...http.jsonify(conf.value)
         })
             .then((data) => {
-                if (data.data.already) {
-                    message.warning("提交失败，已存在进行中的测试");
-                } else {
-                    message.success("已启动测试");
-                }
+                message.success(
+                    data.data.last_test_aborted ? "已终止上次测试并启动新的测试" : "已启动测试"
+                );
             })
             .catch((err) => handleErrWithDialog(dialog, err, { title: "提交测试出错" }))
             .finally(() => {

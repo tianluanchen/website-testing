@@ -1,6 +1,7 @@
 package wt
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/http"
@@ -131,11 +132,12 @@ func (client *Client) Do(req *http.Request, maximumRedirects ...int) ([]Record, 
 // visit url like a browser with GET method
 //
 // if err is not nil, it means first request build error
-func (client *Client) Visit(url string, maximumRedirects ...int) (*Result, error) {
+func (client *Client) Visit(ctx context.Context, url string, maximumRedirects ...int) (*Result, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
+	req = req.WithContext(ctx)
 	req.Header = http.Header{
 		"Accept":          []string{"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"},
 		"Accept-Language": []string{"zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2"},

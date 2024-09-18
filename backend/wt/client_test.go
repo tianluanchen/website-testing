@@ -1,6 +1,7 @@
 package wt
 
 import (
+	"context"
 	"testing"
 )
 
@@ -28,7 +29,7 @@ func TestClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := client.Visit("https://httpbin.org/anything")
+	result, err := client.Visit(context.Background(), "https://httpbin.org/anything")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func TestClientWithRedirects(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 2 redirects
-	result, err := client.Visit("http://httpbin.org/redirect-to?url=http%3A%2F%2Fhttpbin.org%2Fredirect-to%3Furl%3Dhttps%253A%252F%252Fhttpbin.org%252Fanything")
+	result, err := client.Visit(context.Background(), "http://httpbin.org/redirect-to?url=http%3A%2F%2Fhttpbin.org%2Fredirect-to%3Furl%3Dhttps%253A%252F%252Fhttpbin.org%252Fanything")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,6 +60,7 @@ func TestClientWithLimitRedirects(t *testing.T) {
 	}
 	// maximum 1 redirect, but the link will redirect twice
 	result, err := client.Visit(
+		context.Background(),
 		"http://httpbin.org/redirect-to?url=http%3A%2F%2Fhttpbin.org%2Fredirect-to%3Furl%3Dhttps%253A%252F%252Fhttpbin.org%252Fanything",
 		1,
 	)

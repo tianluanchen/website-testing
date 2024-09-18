@@ -1,10 +1,10 @@
 package tc
 
 import (
+	"context"
 	"sync"
 	"time"
 	"website-testing/config"
-	"website-testing/wt"
 )
 
 type (
@@ -64,18 +64,18 @@ type (
 )
 
 type testingCenter struct {
-	client  *wt.Client
-	store   *testingStore
-	testing bool
-	rwmutex sync.RWMutex
+	store  *testingStore
+	ctx    context.Context
+	cancel context.CancelFunc
+	mutex  sync.Mutex
 }
 
 type CallbackOption struct {
-	OnStart         func()
-	OnRaceForAPI    func(api *config.API, duration time.Duration)
-	OnFetchWebsites func(count int)
-	OnTest          func(count, finished int, category, name, link string)
-	OnFinish        func(err error, duration time.Duration)
+	OnStart          func()
+	OnPickFastestAPI func(api *config.API, duration time.Duration)
+	OnFetchWebsites  func(count int)
+	OnTest           func(count, finished int, category, name, link string)
+	OnFinish         func(err error, duration time.Duration)
 }
 
 func (opt *CallbackOption) fix() {
@@ -85,8 +85,8 @@ func (opt *CallbackOption) fix() {
 	if opt.OnStart == nil {
 		opt.OnStart = func() {}
 	}
-	if opt.OnRaceForAPI == nil {
-		opt.OnRaceForAPI = func(api *config.API, duration time.Duration) {}
+	if opt.OnPickFastestAPI == nil {
+		opt.OnPickFastestAPI = func(api *config.API, duration time.Duration) {}
 	}
 	if opt.OnFetchWebsites == nil {
 		opt.OnFetchWebsites = func(count int) {}

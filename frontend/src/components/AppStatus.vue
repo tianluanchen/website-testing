@@ -112,7 +112,7 @@ useWebSocket(`ws${location.protocol === "https:" ? "s" : ""}://${location.host}/
                 content.value = () => "开始测试中...";
                 processStatus.value = "info";
                 break;
-            case "RaceForAPI":
+            case "PickFastestAPI":
                 counter.set(10);
                 counter.increaseTo(20);
                 content.value = () => [

@@ -1,6 +1,7 @@
 package tc
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,16 +25,16 @@ var logger = pkg.NewLogger()
 // Unique instance
 var tc = &testingCenter{}
 
-func (tc *testingCenter) buildClient(conf *config.Conf) error {
+func buildClient(conf *config.Conf) (*wt.Client, error) {
 	client, err := wt.New(conf.ToWtOption())
 	if err != nil {
-		return err
+		return client, err
 	}
-	tc.client = client
-	return nil
+	return client, nil
+
 }
 
-func (tc *testingCenter) raceForAPI() (*config.API, *wt.Result, error) {
+func PickFastestAPI(ctx context.Context, client *wt.Client) (*config.API, *wt.Result, error) {
 	var winner *config.API
 	var winnerResult *wt.Result
 	var once sync.Once
@@ -45,7 +46,7 @@ func (tc *testingCenter) raceForAPI() (*config.API, *wt.Result, error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			result, err := tc.client.Visit(u)
+			result, err := client.Visit(ctx, u)
 			if err != nil {
 				errs[i] = err
 				return
@@ -85,7 +86,7 @@ type URLWithName struct {
 	URL  string `json:"url"`
 }
 
-func (tc *testingCenter) FetchWebsites(api *config.API) (map[string][]URLWithName, error) {
+func FetchWebsites(ctx context.Context, client *wt.Client, api *config.API) (map[string][]URLWithName, error) {
 	result := make(map[string][]URLWithName)
 	g := new(errgroup.Group)
 	for _, v := range []string{config.CategoryAnimation, config.CategoryVideo} {
@@ -101,7 +102,8 @@ func (tc *testingCenter) FetchWebsites(api *config.API) (map[string][]URLWithNam
 			if err != nil {
 				return err
 			}
-			records, err := tc.client.Do(req, 0)
+			req = req.WithContext(ctx)
+			records, err := client.Do(req, 0)
 			if err != nil {
 				return err
 			}
@@ -118,41 +120,21 @@ func (tc *testingCenter) FetchWebsites(api *config.API) (map[string][]URLWithNam
 	return result, g.Wait()
 }
 
-func (tc *testingCenter) IsTesting() bool {
-	tc.rwmutex.RLock()
-	defer tc.rwmutex.RUnlock()
-	return tc.testing
-}
-func (tc *testingCenter) Test(conf *config.Conf, opt *CallbackOption) bool {
-	if tc.IsTesting() {
-		return false
-	}
-	tc.rwmutex.Lock()
-	tc.testing = true
-	tc.rwmutex.Unlock()
-	go func() {
-		defer func() {
-			tc.rwmutex.Lock()
-			tc.testing = false
-			tc.rwmutex.Unlock()
-		}()
-		tc.test(conf, opt)
-	}()
-	return true
-}
-
 func getErrValue(err error) string {
 	if err == nil {
 		return ""
 	}
 	return err.Error()
 }
+
 func getTimeValue(t time.Time) int64 {
 	return t.UnixMilli()
 }
+
 func getDurationValue(d time.Duration) int64 {
 	return d.Milliseconds()
 }
+
 func getAddrInfo(addr net.Addr) *addInfo {
 	if addr == nil {
 		return nil
@@ -224,93 +206,6 @@ func parseVisitReturn(result *wt.Result, err error) (*testResult, string) {
 
 	}
 	return r, getErrValue(err)
-
-}
-func (tc *testingCenter) test(conf *config.Conf, opt *CallbackOption) (fatalErr error) {
-	if opt == nil {
-		opt = &CallbackOption{}
-	}
-	opt.fix()
-	start := time.Now()
-	tc.store = &testingStore{
-		Conf:  conf,
-		Start: getTimeValue(start),
-	}
-	defer func() {
-		end := time.Now()
-		tc.store.End = getTimeValue(end)
-		tc.store.Err = getErrValue(fatalErr)
-		opt.OnFinish(fatalErr, end.Sub(start))
-	}()
-	opt.OnStart()
-	logger.Debugln("配置项:", conf)
-	if err := tc.buildClient(conf); err != nil {
-		logger.Errorln("构建客户端失败:", err)
-		return err
-	}
-	logger.Debugln("正在选择最快的可用API...")
-	api, result, err := tc.raceForAPI()
-	if err != nil {
-		logger.Errorln("获取可用API失败:", err)
-		return err
-	}
-
-	opt.OnRaceForAPI(api, result.TotalDuration)
-
-	logger.Debugln("选用API:", (*url.URL)(api).String(), "访问时长:", result.TotalDuration)
-	websites, err := tc.FetchWebsites(api)
-	if err != nil {
-		logger.Errorln("获取网站失败:", err)
-		return err
-	}
-
-	count := 0
-	groups := make([]*testGroup, 0)
-	for c, list := range websites {
-		group := &testGroup{
-			Category: c,
-			Items:    make([]*testItem, 0),
-		}
-		for _, v := range list {
-			count++
-			group.Items = append(group.Items, &testItem{
-				URLWithName: v,
-				Status:      "pending",
-			})
-		}
-		groups = append(groups, group)
-	}
-	opt.OnFetchWebsites(count)
-	tc.store.Conf = conf
-	tc.store.Groups = groups
-	concurrency := count
-	if count > 64 {
-		concurrency = 64
-	}
-	ch := make(chan struct{}, concurrency)
-	var wg sync.WaitGroup
-	var finished atomic.Int64
-	logger.Debugln("开始测试", count, "个网站...")
-	for i := range groups {
-		for j := range groups[i].Items {
-			item := groups[i].Items[j]
-			wg.Add(1)
-			ch <- struct{}{}
-			go func() {
-				defer func() {
-					wg.Done()
-					<-ch
-				}()
-				item.Result, item.Err = parseVisitReturn(tc.client.Visit(item.URL))
-				item.Status = "done"
-				n := finished.Add(1)
-				opt.OnTest(count, int(n), groups[i].Category, groups[i].Items[j].Name, groups[i].Items[j].URL)
-			}()
-		}
-	}
-	wg.Wait()
-	logger.Debug("测试完成")
-	return nil
 }
 
 func parseResponse(resp *http.Response) ([]URLWithName, error) {
@@ -332,15 +227,181 @@ func parseResponse(resp *http.Response) ([]URLWithName, error) {
 	return obj.Websites, nil
 }
 
+func getCtxErr(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
+}
+
+func (tc *testingCenter) test(ctx context.Context, store *testingStore, opt *CallbackOption) (fatalErr error) {
+	if opt == nil {
+		opt = &CallbackOption{}
+	}
+	opt.fix()
+	start := time.Now()
+	store.Start = getTimeValue(start)
+	conf := store.Conf
+	defer func() {
+		end := time.Now()
+		store.End = getTimeValue(end)
+		store.Err = getErrValue(fatalErr)
+		if getCtxErr(ctx) != nil {
+			return
+		}
+		opt.OnFinish(fatalErr, end.Sub(start))
+	}()
+	opt.OnStart()
+	logger.Debugln("配置项:", conf)
+	client, err := buildClient(conf)
+	if err != nil {
+		logger.Errorln("构建客户端失败:", err)
+		return err
+	}
+	logger.Debugln("正在选择最快的可用API...")
+	api, result, err := PickFastestAPI(ctx, client)
+	if err := getCtxErr(ctx); err != nil {
+		logger.Debugln("已取消当前测试")
+		return err
+	}
+	if err != nil {
+		logger.Errorln("获取可用API失败:", err)
+		return err
+	}
+	opt.OnPickFastestAPI(api, result.TotalDuration)
+	logger.Debugln("选用API:", (*url.URL)(api).String(), "访问时长:", result.TotalDuration)
+	websites, err := FetchWebsites(ctx, client, api)
+	if err := getCtxErr(ctx); err != nil {
+		logger.Debugln("已取消当前测试")
+		return err
+	}
+	if err != nil {
+		logger.Errorln("获取网站失败:", err)
+		return err
+	}
+	count := 0
+	groups := make([]*testGroup, 0)
+	for c, list := range websites {
+		group := &testGroup{
+			Category: c,
+			Items:    make([]*testItem, 0),
+		}
+		for _, v := range list {
+			count++
+			group.Items = append(group.Items, &testItem{
+				URLWithName: v,
+				Status:      "pending",
+			})
+		}
+		groups = append(groups, group)
+	}
+	opt.OnFetchWebsites(count)
+	store.Conf = conf
+	store.Groups = groups
+	concurrency := count
+	if count > 64 {
+		concurrency = 64
+	}
+	ch := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	var finished atomic.Int64
+	logger.Debugln("开始测试", count, "个网站...")
+	for i := range groups {
+		for j := range groups[i].Items {
+			item := groups[i].Items[j]
+			wg.Add(1)
+			ch <- struct{}{}
+			go func() {
+				defer func() {
+					wg.Done()
+					<-ch
+				}()
+				item.Result, item.Err = parseVisitReturn(client.Visit(ctx, item.URL))
+				item.Status = "done"
+				n := finished.Add(1)
+				if getCtxErr(ctx) != nil {
+					return
+				}
+				opt.OnTest(count, int(n), groups[i].Category, groups[i].Items[j].Name, groups[i].Items[j].URL)
+			}()
+		}
+	}
+	wg.Wait()
+	if err := getCtxErr(ctx); err != nil {
+		logger.Debugln("已取消当前测试")
+		return err
+	}
+	logger.Debug("测试完成")
+	return nil
+}
+
+func (tc *testingCenter) abort() bool {
+	if tc.cancel != nil {
+		tc.cancel()
+		tc.cancel = nil
+		tc.ctx = nil
+		return true
+	}
+	return false
+}
+
+func (tc *testingCenter) Abort() bool {
+	tc.mutex.Lock()
+	defer tc.mutex.Unlock()
+	return tc.abort()
+}
+
+func (tc *testingCenter) IsTesting() bool {
+	tc.mutex.Lock()
+	defer tc.mutex.Unlock()
+	return tc.cancel != nil
+}
+
+// Returns true if the last test was aborted
+func (tc *testingCenter) Test(conf *config.Conf, opt *CallbackOption) bool {
+	tc.mutex.Lock()
+	defer tc.mutex.Unlock()
+	aborted := tc.abort()
+	ctx, cancel := context.WithCancel(context.Background())
+	tc.cancel = cancel
+	tc.ctx = ctx
+	store := &testingStore{
+		Conf: conf,
+	}
+	tc.store = store
+	go func() {
+		defer func() {
+			tc.mutex.Lock()
+			defer tc.mutex.Unlock()
+			if tc.ctx == ctx {
+				tc.ctx = nil
+				tc.cancel = nil
+			}
+			cancel()
+		}()
+		tc.test(ctx, store, opt)
+	}()
+	return aborted
+}
+
+func (tc *testingCenter) GetStore() *testingStore {
+	tc.mutex.Lock()
+	defer tc.mutex.Unlock()
+	return tc.store
+}
+
 func IsTesting() bool {
 	return tc.IsTesting()
 }
 
+// Returns true if the last test was aborted.
 func Test(conf *config.Conf, opt *CallbackOption) bool {
 	return tc.Test(conf, opt)
 }
 
-// maybe nil and the struct has custom marshaller
+// Maybe nil and the struct has custom marshaller
 func GetStore() *testingStore {
-	return tc.store
+	return tc.GetStore()
 }

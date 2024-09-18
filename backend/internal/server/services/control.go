@@ -33,9 +33,9 @@ var CallbackOption = &tc.CallbackOption{
 			"event": "Start",
 		}))
 	},
-	OnRaceForAPI: func(api *config.API, duration time.Duration) {
+	OnPickFastestAPI: func(api *config.API, duration time.Duration) {
 		wsHandler.Broadcast(serializeWithPanic(gin.H{
-			"event": "RaceForAPI",
+			"event": "PickFastestAPI",
 			"data": gin.H{
 				"api":      (*url.URL)(api).String(),
 				"duration": duration.Milliseconds(),
@@ -82,7 +82,7 @@ func StartTesting(ctx *gin.Context) {
 		return
 	}
 	response.ReturnSuccessWithData(ctx, "success", gin.H{
-		"already": !tc.Test(conf, CallbackOption),
+		"last_test_aborted": tc.Test(conf, CallbackOption),
 	})
 }
 
