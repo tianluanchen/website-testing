@@ -14,6 +14,8 @@ on:
     branches: 
       - main
     paths:
+      - '**/pnpm-lock.yaml'
+      - '**/package.json'
       - '**.ts'
       - '**.vue'
       - '**.less'
@@ -21,8 +23,7 @@ on:
       - '**.go'
       - '**.mod'
       - '**.sum'
-      - '**.yaml'
-      - '**.json'
+
 
 jobs:
 
