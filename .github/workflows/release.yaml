@@ -21,6 +21,8 @@ on:
       - '**.go'
       - '**.mod'
       - '**.sum'
+      - '**.yaml'
+      - '**.json'
 
 jobs:
 
