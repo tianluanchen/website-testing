@@ -29,7 +29,7 @@ func main() {
 	flag.BoolVar(&v, "v", false, "Print version information")
 	flag.Parse()
 	if v {
-		fmt.Println("website-testing:", config.Version)
+		fmt.Println("website-testing", config.Version)
 		return
 	}
 	srv := http.Server{
